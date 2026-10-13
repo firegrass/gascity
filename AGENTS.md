@@ -125,6 +125,12 @@ six primitives, plus the progressive capability levels — is
 5. **Side effects (I/O, process spawning) are confined to Layer 0.**
 6. **The controller drives all SDK infrastructure operations.**
    No SDK mechanism may require a specific user-configured agent role.
+7. **Graph completion and work disposition are separate.** A closed formula
+   step with `gc.step_ref` and a terminal `gc.outcome` (`pass`, `fail`, or
+   `skipped`) satisfies readiness dependencies even when `gc.work_outcome` is
+   `blocked`. Dispatch must receive its controls to propagate failure, retry,
+   or skip. Non-step blocked work and steps without a recognized terminal
+   outcome retain the blocked veto; readiness never turns failure into pass.
 
 ### Invariants enforced by CI
 

@@ -771,7 +771,7 @@ func IsReadyBlockingDependencyType(t string) bool {
 // open rather than newly stalling dependents it doesn't understand.
 //
 // Callers pass ReadinessWorkOutcome(dep.Metadata), not the raw gc.work_outcome,
-// so a dependency whose control-plane step passed is never vetoed.
+// so a dependency whose control-plane step terminated is never vetoed.
 func DependencySatisfied(depStatus, depWorkOutcome string) bool {
 	if depStatus != "closed" {
 		return false
@@ -781,21 +781,22 @@ func DependencySatisfied(depStatus, depWorkOutcome string) bool {
 
 // ReadinessWorkOutcome is the gc.work_outcome value readiness should judge a
 // closed dependency by. gc.outcome is the control-plane step result that
-// internal/dispatch sequences a workflow on, and gc.work_outcome the worker's
-// work-record disposition (ADR-0009); the two vocabularies are disjoint and can
-// disagree. A step that closed with gc.outcome=pass has already been advanced
-// past by dispatch, so letting gc.work_outcome=blocked veto its dependents
-// strands them: the graph waits on work that readiness never offers to any
-// worker. When the step passed, its work outcome does not gate readiness.
+// internal/dispatch sequences a workflow on, and gc.work_outcome is the worker's
+// work-record disposition (ADR-0009). A terminal formula step must release its
+// dependents even when its worker records blocked work: retry, scope-check and
+// finalization controls need to run to propagate failures or skips. Dispatch
+// owns the outcome semantics; readiness only observes dependency completion.
 //
-// The override applies only to formula step beads (those carrying
-// gc.step_ref). A plain work bead can also carry gc.outcome=pass — the core
-// mol-do-work formula stamps it on the work bead it closes, blocked or not —
-// and there gc.outcome is not a dispatch verdict, so its blocked work outcome
-// keeps withholding dependents.
+// Only recognized terminal outcomes on formula steps (gc.step_ref) override
+// the work outcome. An unfinished step and a plain work bead closed blocked
+// still withhold dependents, even if the latter carries gc.outcome=pass from
+// the core mol-do-work formula.
 func ReadinessWorkOutcome(metadata map[string]string) string {
-	if metadata[beadmeta.StepRefMetadataKey] != "" && metadata[beadmeta.OutcomeMetadataKey] == beadmeta.OutcomePass {
-		return ""
+	if metadata[beadmeta.StepRefMetadataKey] != "" {
+		switch metadata[beadmeta.OutcomeMetadataKey] {
+		case beadmeta.OutcomePass, beadmeta.OutcomeFail, beadmeta.OutcomeSkipped:
+			return ""
+		}
 	}
 	return metadata[beadmeta.WorkOutcomeMetadataKey]
 }

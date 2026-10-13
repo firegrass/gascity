@@ -7,12 +7,12 @@ import (
 	"github.com/gastownhall/gascity/internal/beadmeta"
 )
 
-// TestCachingStoreReadyDefersToAPassedStep checks the cached ready verdict
-// against both shapes of a closed blocker that recorded
+// TestCachingStoreReadyDefersToATerminalStep checks the cached ready verdict
+// against the shapes of a closed blocker that recorded
 // gc.work_outcome=blocked: alone it withholds its dependent, but when the
-// blocker's control-plane step passed (gc.outcome=pass) the dependent is ready,
+// blocker's control-plane step terminated the dependent is ready,
 // matching the backing stores.
-func TestCachingStoreReadyDefersToAPassedStep(t *testing.T) {
+func TestCachingStoreReadyDefersToATerminalStep(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
 		metadata map[string]string
@@ -26,6 +26,11 @@ func TestCachingStoreReadyDefersToAPassedStep(t *testing.T) {
 		{
 			"passed step releases the dependent despite a blocked work outcome",
 			map[string]string{beadmeta.StepRefMetadataKey: "review", beadmeta.OutcomeMetadataKey: beadmeta.OutcomePass, beadmeta.WorkOutcomeMetadataKey: beadmeta.WorkOutcomeBlocked},
+			true,
+		},
+		{
+			"hard-failed step releases the dependent despite a blocked work outcome",
+			map[string]string{beadmeta.StepRefMetadataKey: "review", beadmeta.OutcomeMetadataKey: beadmeta.OutcomeFail, beadmeta.FailureClassMetadataKey: beadmeta.FailureClassHard, beadmeta.WorkOutcomeMetadataKey: beadmeta.WorkOutcomeBlocked},
 			true,
 		},
 		{
