@@ -52,6 +52,11 @@ when the context ends. Take the bound from the caller's own context.
 
 ## Codex activity
 
+One-shot commands execute through their process lifecycle. A quiet running
+one-shot command holding a claim must not enter the interactive execution-claim
+backstop. Process completion, crash recovery and configured lifecycle deadlines
+still apply; terminal output is not a progress requirement for these commands.
+
 Codex activity comes from matching native turn lifecycle events, not assistant
 text or token usage. History and tail observations must use the same provider
 parser. Large tool output must not erase the latest turn boundary. A torn final

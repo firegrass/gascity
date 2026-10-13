@@ -186,6 +186,43 @@ func (f *executionBackstopFixture) nudgeCount() int {
 	return strings.Count(f.stdout.String(), "execution-claim-nudge: nudged")
 }
 
+// A deterministic command can be quiet while executing its claimed work. Its
+// process lifecycle owns completion; the interactive prompt backstop does not.
+func TestExecutionBackstopLeavesQuietOneShotClaimsAlone(t *testing.T) {
+	for _, template := range []string{"worker", "project/worker"} {
+		t.Run(template, func(t *testing.T) {
+			f := newExecutionBackstopFixture(t)
+			f.cfg.Agents[0].Lifecycle = config.AgentLifecycleOneShot
+			f.cfg.Agents[0].Nudge = ""
+			if strings.HasPrefix(template, "project/") {
+				f.cfg.Agents[0].Dir = "project"
+			}
+			f.setSessionMeta(t, map[string]string{"template": template})
+			f.tickStale(t)
+			if len(f.drained) != 0 || f.nudgeCount() != 0 {
+				t.Fatalf("quiet command interrupted: drains=%v; %s", f.drained, f.stdout.String())
+			}
+			if got := f.sessionMeta(t, executionClaimNudgeWorkKey); got != "" {
+				t.Fatalf("deterministic execution acquired interactive stall marker %q", got)
+			}
+		})
+	}
+}
+
+func TestExecutionBackstopClearsLegacyOneShotStall(t *testing.T) {
+	f := newExecutionBackstopFixture(t)
+	f.cfg.Agents[0].Lifecycle = config.AgentLifecycleOneShot
+	f.setSessionMeta(t, map[string]string{
+		executionClaimNudgeWorkKey:         f.work.ID,
+		executionClaimNudgeStalledKey:      f.now.Add(-time.Hour).Format(time.RFC3339),
+		executionClaimNudgeStalledTokenKey: "old-incarnation",
+	})
+	f.tickStale(t)
+	if len(f.drained) != 0 || f.sessionMeta(t, executionClaimNudgeStalledKey) != "" {
+		t.Fatalf("legacy one-shot stall survived: drains=%v; %s", f.drained, f.stdout.String())
+	}
+}
+
 // TestExecutionBackstopNudgesAnIdleClaimHolderExactlyOnce is the core row: the
 // slot holds an in-progress claim, the provider reports no activity past the
 // grace, and the configured claim nudge is re-delivered once with the attempt

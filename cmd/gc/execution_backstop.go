@@ -265,6 +265,14 @@ func (p poolExecutionBackstop) governs(s beads.Bead) bool {
 // nudge about would make the persisted marker a lie. Ambiguity holds rather than
 // clears, so a transient multi-claim tick cannot reset a window already running.
 func (p poolExecutionBackstop) resolve(s beads.Bead, _ map[string]beads.Bead, sessName string) (backstopTarget, backstopResolution) {
+	// One-shot commands execute by running their process, not by answering a
+	// prompt. Quiet output is not an abandoned claim. Process completion,
+	// crash recovery and configured lifecycle timers remain their owners.
+	// Clear a previous interactive marker too, so an upgraded live command
+	// does not retain an execution-stalled latch from the old predicate.
+	if agent := findAgentByTemplate(p.cfg, normalizedSessionTemplate(s, p.cfg)); agent != nil && agent.Lifecycle == config.AgentLifecycleOneShot {
+		return backstopTarget{}, backstopResolutionClear
+	}
 	claims := p.claims.forIdentities(currentSessionAssigneeIdentities(s))
 	switch len(claims) {
 	case 0:

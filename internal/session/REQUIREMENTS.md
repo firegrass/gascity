@@ -134,6 +134,7 @@ unless the row names how they map to the canonical projection.
 
 | ID | Scenario | Required behavior | Evidence |
 |---|---|---|---|
+| SESSION-RECON-ONESHOT-CLAIM | Quiet deterministic execution | A configured `one_shot` pool command holding in-progress work is not nudged or drained by the interactive execution-claim backstop because its terminal is quiet. Existing execution-claim stall markers clear when observed on that running command. Process completion, crash recovery and configured lifecycle timers remain unchanged. | `cmd/gc/execution_backstop_test.go` (`TestExecutionBackstopLeavesQuietOneShotClaimsAlone`, `TestExecutionBackstopClearsLegacyOneShotStall`) |
 | SESSION-RECON-001 | Worker boundary | Production CLI session creation/lifecycle operations route through `internal/worker/handle.go`; direct manager creation is limited to documented root exceptions. | root `AGENTS.md`; `cmd/gc/worker_boundary_import_test.go` |
 | SESSION-RECON-002 | Cold pool scale from zero | A min=0 pool with custom scale check returning 0 wakes one session when routed work exists in any active store, including city-store work targeting a rig-qualified agent. Demand is clamped to 1. | `cmd/gc/scale_from_zero_test.go`; commit `a2b2da046` |
 | SESSION-RECON-003 | Existing rig session prevents cold wake | If a matching active session exists in the rig store, the pool is not treated as cold and the custom scale result can remain 0. | `cmd/gc/scale_from_zero_test.go` |
