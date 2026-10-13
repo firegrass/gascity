@@ -926,42 +926,56 @@ func RunStoreTestsWithOptions(t *testing.T, newStore func() beads.Store, opts Op
 		}
 	})
 
-	t.Run("ReadyIncludesDependentWhenBlockerPassedDespiteWorkOutcomeBlocked", func(t *testing.T) {
-		s := newStore()
-		blocker, err := s.Create(beads.Bead{Title: "blocker", Type: "task"})
-		if err != nil {
-			t.Fatal(err)
-		}
-		dependent, err := s.Create(beads.Bead{Title: "dependent", Type: "task"})
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := s.DepAdd(dependent.ID, blocker.ID, "blocks"); err != nil {
-			t.Fatal(err)
-		}
-		if err := s.Close(blocker.ID); err != nil {
-			t.Fatal(err)
-		}
-		// A workflow step that passed (gc.outcome=pass, which dispatch advances
-		// on) while its worker recorded gc.work_outcome=blocked: a plan review
-		// that found required changes but whose step contract always passes.
-		// Dispatch has already moved past it, so its dependent must be ready or
-		// the workflow waits forever on work no worker is ever offered.
-		if err := s.SetMetadataBatch(blocker.ID, map[string]string{
-			beadmeta.StepRefMetadataKey:     "review",
-			beadmeta.OutcomeMetadataKey:     beadmeta.OutcomePass,
-			beadmeta.WorkOutcomeMetadataKey: beadmeta.WorkOutcomeBlocked,
-		}); err != nil {
-			t.Fatal(err)
-		}
-		got, err := s.Ready()
-		if err != nil {
-			t.Fatal(err)
-		}
-		if len(got) != 1 || got[0].Title != "dependent" {
-			t.Fatalf("Ready() = %v, want [dependent]: a blocker whose step passed must satisfy its dependent whatever its gc.work_outcome", titlesOf(got))
-		}
-	})
+	for _, tc := range []struct {
+		outcome   string
+		wantReady bool
+	}{
+		{beadmeta.OutcomePass, true},
+		{beadmeta.OutcomeFail, true},
+		{beadmeta.OutcomeSkipped, true},
+		{"", false},
+		{"waiting", false},
+	} {
+		t.Run("ReadyGraphStepWithBlockedWorkOutcome/"+tc.outcome, func(t *testing.T) {
+			s := newStore()
+			blocker, err := s.Create(beads.Bead{Title: "blocker", Type: "task"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			dependent, err := s.Create(beads.Bead{Title: "dependent", Type: "task"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := s.DepAdd(dependent.ID, blocker.ID, "blocks"); err != nil {
+				t.Fatal(err)
+			}
+			if err := s.Close(blocker.ID); err != nil {
+				t.Fatal(err)
+			}
+			// A terminal formula step must release its controls even when the
+			// worker records blocked work. Dispatch owns retry/abort semantics;
+			// readiness cannot withhold the control that propagates the failure.
+			if err := s.SetMetadataBatch(blocker.ID, map[string]string{
+				beadmeta.StepRefMetadataKey:      "review",
+				beadmeta.OutcomeMetadataKey:      tc.outcome,
+				beadmeta.FailureClassMetadataKey: beadmeta.FailureClassHard,
+				beadmeta.WorkOutcomeMetadataKey:  beadmeta.WorkOutcomeBlocked,
+			}); err != nil {
+				t.Fatal(err)
+			}
+			got, err := s.Ready()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tc.wantReady {
+				if len(got) != 1 || got[0].Title != "dependent" {
+					t.Fatalf("Ready() = %v, want [dependent]: terminal graph outcome %q must release its controls", titlesOf(got), tc.outcome)
+				}
+			} else if len(got) != 0 {
+				t.Fatalf("Ready() = %v, want empty: outcome %q is not terminal", titlesOf(got), tc.outcome)
+			}
+		})
+	}
 
 	t.Run("ReadyExcludesDependentWhenWorkBeadPassedWithWorkOutcomeBlocked", func(t *testing.T) {
 		s := newStore()
