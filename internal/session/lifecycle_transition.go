@@ -41,6 +41,19 @@ const (
 	// never replayed on a later re-launch; folding it in would make the stored
 	// hash never match a re-derivation from the template, re-priming forever.
 	PromptHashMetadataKey = "prompt_hash"
+	// LaunchModelMetadataKey records the provider-facing model id the session
+	// was launched with (the "model" option's resolved flag value, e.g.
+	// "claude-opus-5-5" for the choice key "opus-5-5"), so worker.operation
+	// events and usage facts share one model vocabulary. Stamped by
+	// CommitStartedPatch; never cleared, a later start overwrites it.
+	LaunchModelMetadataKey = "launch_model"
+	// PromptVersionMetadataKey records the prompt template's frontmatter
+	// `version:` label at launch, for worker.operation event provenance.
+	PromptVersionMetadataKey = "prompt_version"
+	// PromptSHAMetadataKey records promptmeta.SHA of the rendered prompt
+	// TEMPLATE text at launch (distinct from prompt_hash, which hashes the
+	// delivered startup prompt including the beacon).
+	PromptSHAMetadataKey = "prompt_sha"
 )
 
 // primingResetKeys are the three priming markers cleared wherever
@@ -381,6 +394,12 @@ type CommitStartedPatchInput struct {
 	// priming_attempted_at is never emitted here.
 	PrimedAt   time.Time
 	PromptHash string
+	// LaunchModel, PromptVersion and PromptSHA are launch provenance for
+	// worker.operation events: each is stamped only when non-empty (a resume
+	// or recovery that resolved nothing leaves the prior value in place).
+	LaunchModel   string
+	PromptVersion string
+	PromptSHA     string
 }
 
 // CommitStartedPatch records a successful runtime start atomically with the
@@ -431,6 +450,19 @@ func CommitStartedPatch(input CommitStartedPatchInput) MetadataPatch {
 	if !input.PrimedAt.IsZero() && input.PromptHash != "" {
 		patch[PrimedAtMetadataKey] = input.PrimedAt.UTC().Format(time.RFC3339)
 		patch[PromptHashMetadataKey] = input.PromptHash
+	}
+	// Launch provenance (model / prompt_version / prompt_sha), read back into
+	// worker.operation payloads by populateOperationEventIdentity. Each key is
+	// written only when non-empty, mirroring PromptHash, so no clear site is
+	// needed and an unresolved value never erases a prior start's stamp.
+	if input.LaunchModel != "" {
+		patch[LaunchModelMetadataKey] = input.LaunchModel
+	}
+	if input.PromptVersion != "" {
+		patch[PromptVersionMetadataKey] = input.PromptVersion
+	}
+	if input.PromptSHA != "" {
+		patch[PromptSHAMetadataKey] = input.PromptSHA
 	}
 	return patch
 }
