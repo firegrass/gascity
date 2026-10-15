@@ -35,7 +35,7 @@ type UsageFact struct {
 	CostUSDEstimate float64 // pricing.Registry.Estimate (pricing.go:214). list-price; decision-support.
 	Unpriced        bool    // true when (provider,model) had no price: tokens still emitted, cost FLAGGED not dropped.
 
-	Provider       string // "anthropic"|"codex"|… (extractor shape differs per family)
+	Provider       string // "anthropic"|"codex"|"grok"|… (extractor shape differs per family)
 	UpstreamReqID  string // provider response id: Anthropic message.id / OpenAI response.id (model);
 	                       // sessionID+awakeEpoch (compute); CONTENT-HASH for codex (NOT positional codex-event-<idx>).
 	At             int64  // unix millis, stamped by emitter
