@@ -30,6 +30,11 @@ var (
 	errNativeIssueMetadataParse = ErrMetadataParse
 )
 
+// BEADS_NODE_ID is deliberately absent: beads v1.3.1 reads node_id only
+// through its CLI config initialisation, so projecting it here would set
+// nothing. Leases the native store grants carry no granted_node until the
+// library exposes a setter (cmd/gc/beads_node_id.go sets the id for every bd
+// subprocess instead).
 var nativeDoltOpenEnvKeys = []string{
 	"BEADS_CREDENTIALS_FILE",
 	"BEADS_DOLT_AUTO_START",
