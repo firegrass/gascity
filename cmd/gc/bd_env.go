@@ -2138,9 +2138,11 @@ func isRecoverableManagedDoltEnvError(err error) bool {
 }
 
 func cityRuntimeEnvMapForCity(cityPath string) map[string]string {
-	// Every bd subprocess, hook query and agent session of this city starts
-	// from this map, so the factory's Beads node id rides here (beads_node_id.go).
-	return withBeadsNodeID(citylayout.CityRuntimeEnvMapForRuntimeDir(cityPath, citylayout.TrustedAmbientCityRuntimeDir(cityPath)), cityPath)
+	// Every bd subprocess, hook query, order and agent session of this city
+	// starts from this map, so the factory's Beads node id and its workspace
+	// name ride here (beads_node_id.go).
+	env := citylayout.CityRuntimeEnvMapForRuntimeDir(cityPath, citylayout.TrustedAmbientCityRuntimeDir(cityPath))
+	return withCityName(withBeadsNodeID(env, cityPath), cityPath)
 }
 
 // cityIdentityAnchorsForCity returns only the three identity anchors
