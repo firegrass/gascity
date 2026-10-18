@@ -24,6 +24,16 @@ import (
 // library exposes a setter; see nativeDoltOpenEnvKeys.
 const beadsNodeIDEnv = "BEADS_NODE_ID"
 
+// cityNameEnv carries the same workspace name to everything a city starts.
+// gc already gives pack commands GC_CITY_NAME (runDiscoveredCommand); orders,
+// bd subprocesses, hooks and agent sessions start from the city runtime map
+// instead and used to inherit whatever the supervisor's environment held. One
+// supervisor serving two cities then handed both the same name, and a pack
+// that builds an identity from it (the PROOF claim seat
+// gascity/<factory>/<rig>) took the other city's identity. Projecting it per
+// city makes the supervisor-wide value irrelevant (PROOF ADR-0239, M3).
+const cityNameEnv = "GC_CITY_NAME"
+
 var beadsNodeIDs sync.Map // cityPath -> node id
 
 // beadsNodeIDForCity returns the Beads node id for cityPath: the city's
@@ -67,6 +77,23 @@ func withBeadsNodeID(env map[string]string, cityPath string) map[string]string {
 	}
 	if id := beadsNodeIDForCity(cityPath); id != "" {
 		env[beadsNodeIDEnv] = id
+	}
+	return env
+}
+
+// withCityName adds the city's workspace name as GC_CITY_NAME — the same value
+// as the Beads node id — when one is known and the map does not already carry
+// an explicit value. An ambient GC_CITY_NAME is not an explicit value: the map
+// is built from the city alone, so the city's own name always reaches it.
+func withCityName(env map[string]string, cityPath string) map[string]string {
+	if env == nil {
+		return env
+	}
+	if _, set := env[cityNameEnv]; set {
+		return env
+	}
+	if name := beadsNodeIDForCity(cityPath); name != "" {
+		env[cityNameEnv] = name
 	}
 	return env
 }
