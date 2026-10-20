@@ -1604,7 +1604,7 @@ error is reported on stderr and the command still exits 0, so bead hooks never
 fail on it. JSON summaries report whether submission to the configured provider
 was attempted; the event bus does not acknowledge durable persistence.
 
-Two requests are refused with exit 1 and nothing is recorded. In --json mode
+Four requests are refused with exit 1 and nothing is recorded. In --json mode
 the failure object carries the code.
 
 - reserved_actor: --actor starts with "cache-", or the default actor is one
@@ -1612,6 +1612,8 @@ the failure object carries the code.
 - bead_payload_refused: --payload on bead.created, bead.updated, bead.closed
   or bead.deleted. Their payload is the bead row; use --bead-payload &lt;id&gt; so
   gc reads it from the store.
+- journal_derived_refused: op.changed or fact.recorded, which the
+  controller derives from operation-journal rows; no command records one.
 - bead_payload_not_found: --bead-payload names a bead the store it resolves
   to does not hold (bead.deleted excepted: the event is recorded with its
   subject alone). Any other failure to read it is reported on stderr and the
@@ -4525,6 +4527,19 @@ equivalent to typing the message into the session's terminal.
 Accepts a session ID or session alias. Multi-word messages are
 joined automatically.
 
+When [ops] authoritative lists message, a nudge to a session a conversation
+lane can type into is recorded as a lane op instead. wait-idle delivers it
+as a prompt at an idle boundary only, never into a running turn. immediate
+delivers it as a prompt at an idle boundary or, when the session's runtime
+can steer, into its running turn; a busy session whose runtime cannot steer
+gets it at the next boundary. queue delivers it as a notice at the next
+boundary and never wakes the session. When this process can type into the
+session, wait-idle and immediate deliver at once what their mode allows
+now, with or without a running controller; otherwise the nudge is reported
+queued, and the lane host serving the session delivers it as its mode
+says. The [ops] content gate does not govern such a nudge, and one whose op
+cannot be written is refused.
+
 ```
 gc session nudge <id-or-alias> <message...> [flags]
 ```
@@ -4533,7 +4548,7 @@ gc session nudge <id-or-alias> <message...> [flags]
 |------|------|---------|-------------|
 | `--delivery` | string | `wait-idle` | delivery mode: immediate, wait-idle, or queue |
 | `--json` | bool |  | JSON output |
-| `--key` | string |  | idempotency key: while the op journal records this command (its [ops] gate is auto or require), rerunning with the same key reports the first run's outcome instead of acting again; ignored when the gate is off (default: a new key each run) |
+| `--key` | string |  | idempotency key: while the op journal records this command (its [ops] content gate is auto or require, or [ops] authoritative lists message), rerunning with the same key reports the first run's outcome instead of acting again, except across a change to whether [ops] authoritative lists message, which refuses the rerun as a different request; ignored otherwise (default: a new key each run) |
 
 ## gc session peek
 
