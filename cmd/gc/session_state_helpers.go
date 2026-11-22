@@ -95,8 +95,13 @@ func poolSessionIsLiveInfo(i sessionpkg.Info) bool {
 //
 // A row an operator holds (`gc session suspend`: Disposition.KeepsSlot) is
 // never freeable, whatever its reason: its slot and its work stay with it.
+// Neither is a row that holds a wait (`gc session wait --sleep`:
+// Disposition.Wait). Its agent drained to sleep on purpose, and the ready
+// wait wakes it in place. The drain that parks it records sleep_reason
+// "idle", so the reason alone cannot tell it from a finished seat; freeing it
+// would stranded-repair the step it still holds and cancel its wait.
 func isPoolSessionSlotFreeable(session beads.Bead, now time.Time) bool {
-	if sessionpkg.DecodeDisposition(session.Metadata).KeepsSlot() {
+	if d := sessionpkg.DecodeDisposition(session.Metadata); d.KeepsSlot() || d.Wait {
 		return false
 	}
 	if isDrainedSessionBead(session) {
@@ -129,7 +134,7 @@ func isPoolSessionSlotFreeable(session beads.Bead, now time.Time) bool {
 
 // isPoolSessionSlotFreeableInfo is the session.Info mirror of isPoolSessionSlotFreeable.
 func isPoolSessionSlotFreeableInfo(i sessionpkg.Info, now time.Time) bool {
-	if sessionpkg.DispositionOfInfo(i).KeepsSlot() {
+	if d := sessionpkg.DispositionOfInfo(i); d.KeepsSlot() || d.Wait {
 		return false
 	}
 	if isDrainedSessionInfo(i) {

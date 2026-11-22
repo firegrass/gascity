@@ -209,6 +209,27 @@ func TestFreeableExcludesUserHold(t *testing.T) {
 	}
 }
 
+// TestFreeableExcludesWaitHold: both twins of the pool-slot freeable
+// predicate refuse a row that holds a wait, whatever its sleep reason says.
+// A worker that sleeps on its gate request drains with sleep_reason "idle";
+// freeing it reaped the step it still held (p620, 2026-11-22).
+func TestFreeableExcludesWaitHold(t *testing.T) {
+	now := time.Date(2026, 11, 22, 12, 0, 0, 0, time.UTC)
+	sleptAt := now.Add(-time.Hour).Format(time.RFC3339)
+	for _, reason := range []string{"idle", "idle-timeout", "drained", ""} {
+		for hold, want := range map[string]bool{"": true, "true": false} {
+			meta := map[string]string{"state": "asleep", "sleep_reason": reason, "slept_at": sleptAt, "wait_hold": hold}
+			b := beads.Bead{ID: "s-1", Type: sessionBeadType, Labels: []string{sessionBeadLabel}, Metadata: meta}
+			if got := isPoolSessionSlotFreeable(b, now); got != want {
+				t.Errorf("bead reason %q wait_hold %q: freeable = %v, want %v", reason, hold, got, want)
+			}
+			if got := isPoolSessionSlotFreeableInfo(session.Info{MetadataState: "asleep", SleepReason: reason, SleptAt: sleptAt, WaitHold: hold}, now); got != want {
+				t.Errorf("info reason %q wait_hold %q: freeable = %v, want %v", reason, hold, got, want)
+			}
+		}
+	}
+}
+
 // TestUserHoldDrainReleased: a user-hold drain is released once its row no
 // longer carries the operator's suspend, a soft suspend included; it holds
 // while the user hold stands, and a drain for another reason is never one.

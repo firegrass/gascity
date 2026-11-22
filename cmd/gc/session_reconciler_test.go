@@ -4295,6 +4295,37 @@ func TestReconcileSessionBeads_StrandedRepairFiresAfterContinuousWindow(t *testi
 	}
 }
 
+// TestReconcileSessionBeads_WaitHeldPoolWorkerIsNotStrandedRepaired pins the
+// p620 2026-11-22 fix: a pool worker that drained to sleep on its own gate
+// request (wait_hold, sleep_reason "idle") while holding its in_progress step
+// is not reported stranded and not repaired, however long the wait lasts.
+// TestReconcileSessionBeads_StrandedRepairFiresAfterContinuousWindow is the
+// same fixture without the wait hold, where the repair fires.
+func TestReconcileSessionBeads_WaitHeldPoolWorkerIsNotStrandedRepaired(t *testing.T) {
+	env, session, work, rec := strandedRepairReconcileEnv(t)
+	env.setSessionMetadata(&session, map[string]string{
+		"wait_hold":    "true",
+		"sleep_intent": "wait-hold",
+	})
+
+	runStrandedReconcileTick(t, env, []beads.Bead{session})
+	env.clk.Time = env.clk.Time.Add(strandedRepairConfirmGrace + time.Minute)
+	updated, _ := env.store.Get(session.ID)
+	runStrandedReconcileTick(t, env, []beads.Bead{updated})
+
+	if got := len(rec.strandedEvents()); got != 0 {
+		t.Fatalf("stranded events = %d, want 0 for a wait-held worker; events: %+v", got, rec.events)
+	}
+	gotSession, _ := env.store.Get(session.ID)
+	if gotSession.Status == "closed" {
+		t.Fatalf("session closed (close_reason=%q), want it kept asleep on its wait", gotSession.Metadata["close_reason"])
+	}
+	gotWork, _ := env.store.Get(work.ID)
+	if gotWork.Status != "in_progress" || gotWork.Assignee != session.ID {
+		t.Fatalf("work status=%q assignee=%q, want in_progress and still assigned to %s", gotWork.Status, gotWork.Assignee, session.ID)
+	}
+}
+
 // Regression for the bypassable confirmation window: a worker that strands, is
 // respawned on the SAME session bead, recovers (observed alive for a tick), then
 // re-strands must NOT be repaired on the first episode's stale marker. The alive
