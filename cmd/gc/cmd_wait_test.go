@@ -2481,6 +2481,21 @@ func TestDispatchReadyWaitNudges_StartsCodexPoller(t *testing.T) {
 }
 
 func TestDispatchReadyWaitNudges_StartsPiPoller(t *testing.T) {
+	assertReadyWaitStartsPoller(t, "pi")
+}
+
+// TestDispatchReadyWaitNudges_StartsGrokPoller pins the p620 2026-11-22 fix:
+// a ready wait on a grok session in legacy dispatch mode starts the
+// per-session poller, so its nudge is delivered while the session is awake.
+func TestDispatchReadyWaitNudges_StartsGrokPoller(t *testing.T) {
+	assertReadyWaitStartsPoller(t, "grok")
+}
+
+// assertReadyWaitStartsPoller drives dispatchReadyWaitNudges with one ready
+// wait on a running session of the given provider and asserts that the
+// per-session poller is started for that session.
+func assertReadyWaitStartsPoller(t *testing.T, provider string) {
+	t.Helper()
 	t.Setenv("GC_BEADS", "file")
 	dir := t.TempDir()
 	store := beads.NewMemStore()
@@ -2491,7 +2506,7 @@ func TestDispatchReadyWaitNudges_StartsPiPoller(t *testing.T) {
 			"session_name":       "worker",
 			"agent_name":         "worker",
 			"continuation_epoch": "1",
-			"provider":           "pi",
+			"provider":           provider,
 		},
 	})
 	if err != nil {
@@ -2532,7 +2547,7 @@ func TestDispatchReadyWaitNudges_StartsPiPoller(t *testing.T) {
 		t.Fatalf("dispatchReadyWaitNudges: %v", err)
 	}
 	if !called {
-		t.Fatal("startNudgePoller was not called")
+		t.Fatalf("startNudgePoller was not called for provider %q", provider)
 	}
 }
 

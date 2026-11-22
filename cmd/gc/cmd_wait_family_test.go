@@ -78,13 +78,26 @@ func TestSessionProviderFamily_WrappedCodexPollerGate(t *testing.T) {
 	}
 }
 
-func TestWaitNudgeProviderNeedsPollerIncludesPi(t *testing.T) {
-	for _, provider := range []string{"codex", "pi"} {
+func TestWaitNudgeProviderNeedsPollerIncludesPiAndGrok(t *testing.T) {
+	for _, provider := range []string{"codex", "pi", "grok"} {
 		if !waitNudgeProviderNeedsPoller(familyInfo(map[string]string{"provider": provider})) {
 			t.Fatalf("%s wait nudge should start a poller", provider)
 		}
 	}
 	if waitNudgeProviderNeedsPoller(familyInfo(map[string]string{"provider": "claude"})) {
 		t.Fatal("claude wait nudge should not start a per-session poller")
+	}
+}
+
+// TestWaitNudgeProviderNeedsPollerIncludesWrappedGrok pins that a wrapped
+// grok alias surfaces as grok-family, so its wait nudge starts a poller: grok
+// has no hook that drains the nudge queue on its own turns.
+func TestWaitNudgeProviderNeedsPollerIncludesWrappedGrok(t *testing.T) {
+	wrapped := familyInfo(map[string]string{
+		"builtin_ancestor": "grok",
+		"provider":         "grok-fast",
+	})
+	if !waitNudgeProviderNeedsPoller(wrapped) {
+		t.Fatal("wrapped grok wait nudge should start a poller")
 	}
 }

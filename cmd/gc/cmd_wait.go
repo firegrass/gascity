@@ -1415,9 +1415,14 @@ func waitNudgeAttemptQueuedOrResolved(front storebinding.NudgeShadows, nudgeID s
 	}
 }
 
+// waitNudgeProviderNeedsPoller reports whether a ready wait's nudge needs a
+// per-session poller to reach the session in legacy dispatch mode. Grok has
+// no provider hook that drains the nudge queue on its turns, so without a
+// poller a wait nudge to an awake grok session stays queued until some other
+// nudge happens to carry it in.
 func waitNudgeProviderNeedsPoller(info sessionpkg.Info) bool {
 	switch sessionProviderFamily(info) {
-	case "codex", "pi":
+	case "codex", "pi", "grok":
 		return true
 	default:
 		return false
